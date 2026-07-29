@@ -7,11 +7,19 @@ depuis le navigateur par toute l'équipe.
 ## Fonctionnalités
 
 - **Lecture & navigation** — rendu Markdown (GFM : tableaux, listes de tâches…) avec
-  coloration syntaxique des blocs de code, navigation par arborescence de dossiers
+  coloration syntaxique des blocs de code, navigation par arborescence de dossiers, contenu qui
+  s'adapte à l'écran (pas de scroll horizontal — les tableaux larges restent une exception
+  volontaire, avec leur propre scroll local)
 - **Édition en ligne** — éditeur Markdown avec preview, sauvegarde directe sur disque,
   détection de conflit si la fiche a été modifiée entre-temps par quelqu'un d'autre
-- **Création & import** — nouvelle fiche depuis l'UI, ou import d'un fichier `.md` existant
-- **Gestion des dossiers** — créer, renommer, déplacer, supprimer dossiers et fiches
+- **Images** — coller un screenshot depuis le presse-papiers directement dans l'éditeur, ou
+  uploader un fichier, avec insertion automatique du Markdown correspondant
+- **Création rapide** — nouveau dossier ou nouvelle fiche vierge en un clic depuis
+  l'arborescence (boutons au survol), ou depuis `/new`
+- **Import par lot** — glisser-déposer un ou plusieurs fichiers `.md`, ou un dossier entier
+  (imbriqué), en conservant la structure de sous-dossiers
+- **Organisation** — glisser-déposer des fiches et dossiers directement dans l'arborescence pour
+  les réorganiser ; renommer, déplacer, supprimer depuis `/folders`
 - **Recherche full-text** — sur le titre et le contenu de toutes les fiches
 - **Multi-utilisateurs** — comptes simples login/mot de passe
 
@@ -86,13 +94,20 @@ npx tsx scripts/create-user.ts <identifiant> <mot-de-passe>
 
 ```
 app/              Pages et routes API (Next.js App Router)
-components/       Composants React (éditeur, arborescence, recherche…)
+  api/
+    fiches/       Lecture, création, édition
+    folders/      Créer / renommer / déplacer / supprimer dossiers et fiches
+    import/       Import par lot (fichiers et/ou dossiers déposés)
+    assets/       Upload et service des images
+    search/       Recherche full-text
+components/       Composants React (éditeur, arborescence, dropzones, recherche…)
 lib/
   auth/           Sessions, mots de passe, rate-limit
-  content/        Lecture/écriture des fiches, résolution sûre des chemins
+  content/        Lecture/écriture des fiches et images, résolution sûre des chemins, rendu Markdown
   db/             Client SQLite, index de recherche
+  client/         Petits utilitaires côté navigateur (upload, drag-and-drop, fetch JSON)
 scripts/          Scripts d'administration (création de compte, reindex)
-content/          Fiches Markdown (non versionné, données runtime)
+content/          Fiches Markdown et images (non versionné, données runtime)
 data/             Base SQLite (non versionné, données runtime)
 ```
 
@@ -102,6 +117,8 @@ data/             Base SQLite (non versionné, données runtime)
   slugs invalides, `..` et séparateurs, et vérifie que le chemin final reste sous le
   dossier de contenu (protection contre le path traversal)
 - Rendu Markdown sanitizé côté serveur (`rehype-sanitize`)
+- Images validées par signature binaire (magic bytes), pas par extension ou Content-Type déclaré
+  par le navigateur — SVG exclu (risque XSS), 8 Mo max
 - Cookies de session `httpOnly`, `sameSite=lax`, `secure` en production
 - Rate-limit basique sur la connexion
 
