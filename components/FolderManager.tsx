@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { TreeNode } from "@/lib/content/fs";
 import { slugify } from "@/lib/content/slugify";
+import { postJson } from "@/lib/client/post-json";
 
 function collectFolderPaths(nodes: TreeNode[]): string[][] {
   const folders: string[][] = [];
@@ -18,17 +19,6 @@ function collectFolderPaths(nodes: TreeNode[]): string[][] {
 
 function folderLabel(folder: string[]): string {
   return folder.length === 0 ? "/ (racine)" : folder.join("/");
-}
-
-async function postJson(url: string, method: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
-  const res = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (res.ok) return { ok: true };
-  const data = await res.json().catch(() => ({}));
-  return { ok: false, error: data.error ?? "Erreur" };
 }
 
 export function FolderManager({ tree }: { tree: TreeNode[] }) {

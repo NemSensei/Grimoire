@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { ImportDropzone } from "@/components/ImportDropzone";
 
 function folderLabel(folder: string[]): string {
   return folder.length === 0 ? "/ (racine)" : folder.join("/");
@@ -13,9 +14,6 @@ export function NewFicheForm({ folders }: { folders: string[][] }) {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
@@ -35,30 +33,6 @@ export function NewFicheForm({ folders }: { folders: string[][] }) {
       router.push(`/edit/${(data.path as string[]).map(encodeURIComponent).join("/")}`);
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleUpload(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setUploadError(null);
-    const input = event.currentTarget.elements.namedItem("file") as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      const body = new FormData();
-      body.set("file", file);
-      body.set("folder", JSON.stringify(folders[folderIndex]));
-      const res = await fetch("/api/upload", { method: "POST", body });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setUploadError(data.error ?? "Erreur lors de l'upload");
-        return;
-      }
-      router.push(`/fiche/${(data.path as string[]).map(encodeURIComponent).join("/")}`);
-    } finally {
-      setUploading(false);
     }
   }
 
@@ -110,24 +84,7 @@ export function NewFicheForm({ folders }: { folders: string[][] }) {
         </button>
       </form>
 
-      <form onSubmit={handleUpload} className="space-y-4 rounded-lg border border-neutral-800 p-4">
-        <h2 className="text-sm font-medium text-neutral-300">Importer un fichier .md existant</h2>
-        <input
-          type="file"
-          name="file"
-          accept=".md"
-          required
-          className="w-full text-sm text-neutral-400 file:mr-3 file:rounded file:border-0 file:bg-neutral-800 file:px-3 file:py-1.5 file:text-neutral-200"
-        />
-        {uploadError && <p className="text-sm text-red-400">{uploadError}</p>}
-        <button
-          type="submit"
-          disabled={uploading}
-          className="rounded bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 disabled:opacity-50"
-        >
-          {uploading ? "Import..." : "Importer"}
-        </button>
-      </form>
+      <ImportDropzone folder={folders[folderIndex]} />
     </div>
   );
 }

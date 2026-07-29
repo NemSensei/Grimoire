@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <TreeView nodes={tree} />
       </aside>
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-neutral-800 px-6 py-3">
           <nav className="flex items-center gap-4 text-sm text-neutral-400">
             <Link href="/new" className="hover:text-neutral-100">

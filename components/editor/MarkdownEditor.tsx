@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useState, type ChangeEvent, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
+import { uploadImage } from "@/lib/client/upload-image";
 
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
 
@@ -18,9 +19,64 @@ export function MarkdownEditor({ segments, initialContent, initialMtimeMs }: Pro
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
+  const folder = segments.slice(0, -1);
   const ficheHref = `/fiche/${segments.map(encodeURIComponent).join("/")}`;
   const apiPath = `/api/fiches/${segments.map(encodeURIComponent).join("/")}`;
+
+  /**
+   * Insère `![](url)` à la position du curseur si on a une référence au textarea (cas collage),
+   * sinon en fin de contenu (cas bouton "+ Image", pas de position de curseur disponible).
+   */
+  async function insertImage(file: File, target?: HTMLTextAreaElement) {
+    setImageError(null);
+    setUploadingImage(true);
+    try {
+      const { url } = await uploadImage(folder, file);
+      const markdown = `![](${url})`;
+
+      if (target) {
+        const start = target.selectionStart;
+        const end = target.selectionEnd;
+        setValue((prev) => `${prev.slice(0, start)}${markdown}${prev.slice(end)}`);
+        requestAnimationFrame(() => {
+          target.focus();
+          const pos = start + markdown.length;
+          target.selectionStart = pos;
+          target.selectionEnd = pos;
+        });
+      } else {
+        setValue((prev) => (prev.length > 0 ? `${prev}\n\n${markdown}\n` : `${markdown}\n`));
+      }
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : "Erreur lors de l'envoi de l'image");
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const item = Array.from(event.clipboardData?.items ?? []).find((it) => it.type.startsWith("image/"));
+    if (!item) return; // pas une image : laisse le collage texte normal se produire
+
+    event.preventDefault();
+    const file = item.getAsFile();
+    if (!file) return;
+
+    // Capturé avant l'await : React vide event.currentTarget après le handler synchrone,
+    // mais cette référence au vrai nœud DOM reste valable indépendamment de ça.
+    const target = event.currentTarget;
+    void insertImage(file, target);
+  }
+
+  function handleImageButtonChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    void insertImage(file);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -56,13 +112,25 @@ export function MarkdownEditor({ segments, initialContent, initialMtimeMs }: Pro
         <a href={ficheHref} className="text-sm text-neutral-400 hover:text-neutral-100">
           ← Annuler
         </a>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded bg-neutral-100 px-4 py-1.5 text-sm font-medium text-neutral-900 disabled:opacity-50"
-        >
-          {saving ? "Sauvegarde..." : "Sauvegarder"}
-        </button>
+        <div className="flex items-center gap-4">
+          <label className="cursor-pointer text-sm text-neutral-400 underline hover:text-neutral-100">
+            {uploadingImage ? "Envoi..." : "+ Image"}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              className="hidden"
+              onChange={handleImageButtonChange}
+              disabled={uploadingImage}
+            />
+          </label>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded bg-neutral-100 px-4 py-1.5 text-sm font-medium text-neutral-900 disabled:opacity-50"
+          >
+            {saving ? "Sauvegarde..." : "Sauvegarder"}
+          </button>
+        </div>
       </div>
 
       {conflict && (
@@ -72,8 +140,14 @@ export function MarkdownEditor({ segments, initialContent, initialMtimeMs }: Pro
         </p>
       )}
       {error && <p className="text-sm text-red-400">{error}</p>}
+      {imageError && <p className="text-sm text-red-400">{imageError}</p>}
 
-      <MDEditor value={value} onChange={(v) => setValue(v ?? "")} height={600} />
+      <MDEditor
+        value={value}
+        onChange={(v) => setValue(v ?? "")}
+        height={600}
+        textareaProps={{ onPaste: handlePaste }}
+      />
     </div>
   );
 }

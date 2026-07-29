@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { CONTENT_ROOT, resolveSafeFichePath, resolveSafeFolderPath } from "./paths";
+import { CONTENT_ROOT, InvalidPathError, resolveSafeFichePath, resolveSafeFolderPath } from "./paths";
 import { slugify } from "./slugify";
 
 export interface TreeFolder {
@@ -122,8 +122,26 @@ export function createFiche(folderSegments: string[], title: string, content: st
   return writeNewFiche(folderSegments, title, content);
 }
 
-export function saveUploadedFiche(folderSegments: string[], originalFilename: string, content: string): Promise<string[]> {
-  return writeNewFiche(folderSegments, originalFilename.replace(/\.md$/i, ""), content);
+export interface ImportEntry {
+  /** Chemin relatif au dossier cible, filename inclus (ex: ["sous-dossier", "fiche.md"]). */
+  relativePath: string[];
+  content: string;
+}
+
+/**
+ * Importe un lot de fiches (drag-and-drop de fichiers et/ou de dossiers), en conservant la
+ * structure de sous-dossiers relative. Traité séquentiellement (pas Promise.all) pour que
+ * l'anti-collision de writeNewFiche voie les fichiers déjà écrits plus tôt dans le même lot.
+ */
+export async function importFiches(baseFolder: string[], entries: ImportEntry[]): Promise<{ imported: string[][] }> {
+  const imported: string[][] = [];
+  for (const entry of entries) {
+    const folderPart = entry.relativePath.slice(0, -1).map(slugify);
+    const filename = entry.relativePath[entry.relativePath.length - 1];
+    const segments = await writeNewFiche([...baseFolder, ...folderPart], filename.replace(/\.md$/i, ""), entry.content);
+    imported.push(segments);
+  }
+  return { imported };
 }
 
 export async function createFolder(segments: string[]): Promise<void> {
@@ -135,6 +153,12 @@ export async function moveEntry(fromSegments: string[], toSegments: string[]): P
   const isFiche = fromSegments[fromSegments.length - 1]?.endsWith(".md") ?? false;
   const fromAbs = isFiche ? resolveSafeFichePath(fromSegments) : resolveSafeFolderPath(fromSegments);
   const toAbs = isFiche ? resolveSafeFichePath(toSegments) : resolveSafeFolderPath(toSegments);
+
+  // Un dossier ne peut pas devenir son propre sous-dossier : fs.rename échouerait (EINVAL) de
+  // toute façon, mais on le détecte nous-mêmes pour renvoyer une erreur propre plutôt qu'un crash.
+  if (!isFiche && (toAbs === fromAbs || toAbs.startsWith(fromAbs + path.sep))) {
+    throw new InvalidPathError("Impossible de déplacer un dossier dans lui-même ou l'un de ses sous-dossiers");
+  }
 
   if (await pathExists(toAbs)) {
     throw new ConflictError("Une entrée existe déjà à cet emplacement");

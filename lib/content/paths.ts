@@ -52,3 +52,15 @@ export function resolveSafeFolderPath(segments: string[]): string {
   });
   return resolveSafePath(segments);
 }
+
+export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp"];
+
+/** Comme resolveSafePath, mais impose que le dernier segment soit une image (extension validée). */
+export function resolveSafeAssetPath(segments: string[]): string {
+  const last = segments[segments.length - 1];
+  const ext = last?.split(".").pop()?.toLowerCase();
+  if (!last || !ext || !IMAGE_EXTENSIONS.includes(ext)) {
+    throw new InvalidPathError("Extension d'image non supportée");
+  }
+  return resolveSafePath(segments);
+}
