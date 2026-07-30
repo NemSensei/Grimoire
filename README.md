@@ -71,6 +71,11 @@ docker compose exec grimoire npx tsx scripts/create-user.ts <identifiant> <mot-d
 Les fiches (`./content`) et la base SQLite (`./data`) sont montées en volumes sur l'hôte : le
 contenu survit aux redémarrages et mises à jour du conteneur.
 
+Le conteneur écoute sur `127.0.0.1:43217` (pas exposé directement sur internet — adapter le port
+dans `docker-compose.yml` si besoin, par exemple en cas de conflit avec un autre service). Prévoir
+un reverse proxy (Apache/nginx/Caddy) devant pour le HTTPS : le cookie de session est marqué
+`secure` en production, donc l'authentification ne fonctionnera pas en HTTP simple.
+
 ## Gestion des comptes
 
 Pas d'auto-inscription : les comptes sont créés en ligne de commande par un administrateur.
