@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, type ChangeEvent, type ClipboardEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { uploadImage } from "@/lib/client/upload-image";
 
@@ -21,10 +21,42 @@ export function MarkdownEditor({ segments, initialContent, initialMtimeMs }: Pro
   const [conflict, setConflict] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [lockHeldBy, setLockHeldBy] = useState<string | null>(null);
 
   const folder = segments.slice(0, -1);
   const ficheHref = `/fiche/${segments.map(encodeURIComponent).join("/")}`;
   const apiPath = `/api/fiches/${segments.map(encodeURIComponent).join("/")}`;
+  const lockApiPath = `/api/locks/${segments.map(encodeURIComponent).join("/")}`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function acquire() {
+      const res = await fetch(lockApiPath, { method: "POST" });
+      if (cancelled) return;
+      if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        setLockHeldBy(typeof data.heldBy === "string" ? data.heldBy : null);
+      } else {
+        setLockHeldBy(null);
+      }
+    }
+
+    function release() {
+      fetch(lockApiPath, { method: "DELETE", keepalive: true }).catch(() => {});
+    }
+
+    void acquire();
+    const heartbeat = setInterval(() => void acquire(), 30_000);
+    window.addEventListener("beforeunload", release);
+
+    return () => {
+      cancelled = true;
+      clearInterval(heartbeat);
+      window.removeEventListener("beforeunload", release);
+      release();
+    };
+  }, [lockApiPath]);
 
   /**
    * Insère `![](url)` à la position du curseur si on a une référence au textarea (cas collage),
@@ -133,6 +165,12 @@ export function MarkdownEditor({ segments, initialContent, initialMtimeMs }: Pro
         </div>
       </div>
 
+      {lockHeldBy && (
+        <p className="rounded border border-amber-700 bg-amber-950 px-3 py-2 text-sm text-amber-300">
+          ⚠️ Cette fiche est en cours d&apos;édition par <strong>{lockHeldBy}</strong>. Vous pouvez continuer, mais
+          vos modifications risquent d&apos;entrer en conflit à la sauvegarde.
+        </p>
+      )}
       {conflict && (
         <p className="rounded border border-amber-700 bg-amber-950 px-3 py-2 text-sm text-amber-300">
           Cette fiche a été modifiée par quelqu&apos;un d&apos;autre depuis son ouverture. Rechargez la page pour

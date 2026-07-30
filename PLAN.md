@@ -284,3 +284,28 @@ s'élargir plutôt que de laisser le débordement local se gérer.
       clair (au lieu de 500)
 - [ ] Vérif visuelle réelle (glisser-déposer à la souris) : **non testée** — pas d'outil de
       contrôle navigateur dans ce sandbox ; à valider manuellement
+
+---
+
+## Amélioration — verrou d'édition informatif
+
+Signal explicite "cette fiche est en cours d'édition par X" dès l'ouverture de l'éditeur, en plus
+du contrôle de conflit par `mtime` déjà en place (qui reste l'unique garantie contre
+l'écrasement — ce verrou est informatif seulement, ne bloque ni la frappe ni la sauvegarde).
+
+- [x] `lib/content/edit-locks.ts` — verrou en mémoire (`Map`), même pattern que
+      `lib/auth/rate-limit.ts` : TTL 90s, `acquireOrRefreshLock()`/`releaseLock()`
+- [x] `app/api/locks/[...path]/route.ts` — route **sœur** de `app/api/fiches/[...path]`, pas
+      imbriquée dessous : même contrainte de routing catch-all déjà rencontrée en V1 pour
+      `/edit/[...path]` (Next.js interdit un segment statique après un catch-all dans le même
+      sous-arbre)
+- [x] `components/editor/MarkdownEditor.tsx` — acquisition à l'ouverture, heartbeat toutes les
+      30s, libération au démontage + `beforeunload` (`fetch(..., { keepalive: true })`), bannière
+      si détenu par quelqu'un d'autre
+- [x] Vérif (curl, deux comptes distincts) : acquisition, conflit 409 avec `heldBy`, heartbeat
+      (ré-acquisition par le même utilisateur), tentative de libération par le mauvais
+      utilisateur (no-op), libération réelle, ré-acquisition par le second utilisateur — tous les
+      cas passent
+- [ ] Vérif côté navigateur (bannière affichée en pratique, libération à la fermeture d'onglet) :
+      **non testée** — pas d'outil de contrôle navigateur dans ce sandbox ; à valider manuellement
+      avec deux sessions différentes
