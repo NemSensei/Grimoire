@@ -44,3 +44,7 @@ next-env.d.ts
 !/content/.gitkeep
 /data/*
 !/data/.gitkeep
+
+# Réglages personnels d’éditeur / outils
+/.vscode/
+/.claude/

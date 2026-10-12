@@ -23,12 +23,15 @@ function getSessionSecret(): string {
   if (cachedSecret) return cachedSecret;
 
   const fromEnv = process.env.SESSION_SECRET;
-  if (fromEnv && fromEnv.length >= 32) {
+  if (fromEnv) {
+    // Un secret trop court défini explicitement est une erreur de config : on refuse de
+    // démarrer plutôt que de basculer silencieusement sur le secret persisté.
+    if (fromEnv.length < 32) throw new Error("SESSION_SECRET doit faire au moins 32 caractères");
     cachedSecret = fromEnv;
     return cachedSecret;
   }
 
-  fs.mkdirSync(path.dirname(SECRET_PATH), { recursive: true });
+  fs.mkdirSync(path.dirname(SECRET_PATH), { recursive: true, mode: 0o700 });
   if (fs.existsSync(SECRET_PATH)) {
     cachedSecret = fs.readFileSync(SECRET_PATH, "utf-8").trim();
   } else {

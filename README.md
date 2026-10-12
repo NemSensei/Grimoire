@@ -1,95 +1,78 @@
 # Le Grimoire
 
-Knowledge base interne pour équipe de pentest : fiches Markdown organisées par dossiers
-thématiques (web, AD, network, privesc…), consultables, éditables et gérables directement
-depuis le navigateur par toute l'équipe.
+Base de connaissances web pour une équipe de pentest. Fiches Markdown organisées par dossiers
+thématiques (web, AD, network, privesc…), consultables et éditables directement depuis le
+navigateur. Déploiement interne, multi-utilisateurs, sans rôles.
 
 ## Fonctionnalités
 
-- **Lecture & navigation** — rendu Markdown (GFM : tableaux, listes de tâches…) avec
-  coloration syntaxique des blocs de code, navigation par arborescence de dossiers, contenu qui
-  s'adapte à l'écran (pas de scroll horizontal — les tableaux larges restent une exception
-  volontaire, avec leur propre scroll local)
-- **Édition en ligne** — éditeur Markdown avec preview, sauvegarde directe sur disque, détection
-  de conflit si la fiche a été modifiée entre-temps par quelqu'un d'autre, et bannière "en cours
-  d'édition par X" dès qu'une autre personne a déjà la fiche ouverte
-- **Images** — coller un screenshot depuis le presse-papiers directement dans l'éditeur, ou
-  uploader un fichier, avec insertion automatique du Markdown correspondant
-- **Création rapide** — nouveau dossier ou nouvelle fiche vierge en un clic depuis
-  l'arborescence (boutons au survol), ou depuis `/new`
-- **Import par lot** — glisser-déposer un ou plusieurs fichiers `.md`, ou un dossier entier
-  (imbriqué), en conservant la structure de sous-dossiers
-- **Organisation** — glisser-déposer des fiches et dossiers directement dans l'arborescence pour
-  les réorganiser ; renommer, déplacer, supprimer depuis `/folders`
-- **Recherche full-text** — sur le titre et le contenu de toutes les fiches
-- **Multi-utilisateurs** — comptes simples login/mot de passe
+- **Lecture** — rendu Markdown (GFM) avec coloration syntaxique, navigation par arborescence.
+- **Édition en ligne** — éditeur avec preview, sauvegarde sur disque, détection de conflit et
+  signalement de l'édition concurrente ("en cours d'édition par X").
+- **Images** — collage depuis le presse-papiers ou upload, insertion automatique du Markdown.
+- **Création & import** — fiche ou dossier en un clic ; import par glisser-déposer de fichiers
+  `.md` ou de dossiers entiers (structure préservée).
+- **Organisation** — glisser-déposer dans l'arborescence, renommage, déplacement, suppression.
+- **Recherche** — full-text sur titre et contenu (SQLite FTS5).
+- **Multi-utilisateurs** — comptes login/mot de passe, créés en CLI (pas d'auto-inscription).
 
-## Stack technique
+## Stack
 
 | | |
 |---|---|
 | Framework | [Next.js](https://nextjs.org) (App Router, TypeScript) |
-| Stockage des fiches | Fichiers `.md` bruts sur disque (pas de base de données pour le contenu) |
-| Comptes & recherche | SQLite (`better-sqlite3`) — table `users` + index full-text FTS5 |
+| Fiches | Fichiers `.md` bruts sur disque (pas de base de données pour le contenu) |
+| Comptes & recherche | SQLite (`better-sqlite3`) — table `users` + index FTS5 |
 | Auth | Sessions chiffrées (`iron-session`) + `bcryptjs` |
 | Rendu Markdown | `unified` / `remark` / `rehype`, sanitizé côté serveur |
-| Éditeur | `@uiw/react-md-editor` |
-| Style | Tailwind CSS |
+| Éditeur | `@uiw/react-md-editor` · Style : Tailwind CSS |
 
-Voir [PLAN.md](PLAN.md) pour le détail des choix d'architecture et l'avancement des étapes.
+## Démarrage
 
-## Démarrage rapide
-
-Prérequis : Node.js 20+. Aucune configuration requise — la base SQLite et le secret de
-session sont créés automatiquement au premier démarrage.
+Prérequis : Node.js 20+. Aucune configuration requise (base SQLite et secret de session créés
+automatiquement au premier démarrage).
 
 ```bash
 npm install
-npx tsx scripts/create-user.ts <identifiant> <mot-de-passe>
+npx tsx scripts/create-user.ts <identifiant>   # mot de passe demandé de façon masquée
 npm run dev
 ```
 
-Ouvrir [http://localhost:3000](http://localhost:3000) et se connecter avec le compte créé.
+Puis [http://localhost:3000](http://localhost:3000).
 
-### Variables d'environnement (toutes optionnelles)
+### Variables d'environnement (optionnelles)
 
-| Variable | Description |
-|---|---|
-| `SESSION_SECRET` | Secret de chiffrement des sessions. Auto-généré et persisté dans `data/.session-secret` si absent. |
-| `CONTENT_DIR` | Dossier des fiches Markdown (défaut : `./content`) |
-| `DB_PATH` | Chemin de la base SQLite (défaut : `./data/grimoire.db`) |
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `SESSION_SECRET` | auto-généré dans `data/.session-secret` | Secret de chiffrement des sessions (≥ 32 caractères si défini) |
+| `CONTENT_DIR` | `./content` | Dossier des fiches Markdown |
+| `DB_PATH` | `./data/grimoire.db` | Chemin de la base SQLite |
 
 Voir [.env.example](.env.example).
 
 ## Déploiement (Docker)
 
-Selon la version de Docker installée, la commande est soit `docker compose` (plugin V2, intégré
-au CLI Docker), soit `docker-compose` (V1, outil autonome) — vérifier avec `docker compose version`
-/ `docker-compose --version` et utiliser celle qui répond. Les exemples ci-dessous utilisent
-`docker-compose` ; remplacer par `docker compose` si c'est celle-là qui est installée.
+Le conteneur tourne en utilisateur non-root (uid/gid `1001`) : les dossiers montés doivent lui
+appartenir avant le premier démarrage.
 
-**Avant le premier démarrage**, le conteneur tourne avec un utilisateur non-root (uid/gid `1001`,
-voir `Dockerfile`) — les dossiers montés en volume doivent lui appartenir, sinon la base SQLite ne
-peut pas être créée (`SQLITE_CANTOPEN`) :
 ```bash
 mkdir -p content data
 sudo chown -R 1001:1001 content data
+
+docker compose build
+docker compose up -d
+docker compose exec grimoire npx tsx scripts/create-user.ts <identifiant>
 ```
 
-```bash
-docker-compose build
-docker-compose up -d
-docker-compose exec grimoire npx tsx scripts/create-user.ts <identifiant> <mot-de-passe>
-```
+> Selon la version de Docker, utiliser `docker compose` (V2) ou `docker-compose` (V1).
 
-Les fiches (`./content`) et la base SQLite (`./data`) sont montées en volumes sur l'hôte : le
-contenu survit aux redémarrages et mises à jour du conteneur.
+`content/` et `data/` sont montés en volumes : le contenu survit aux redémarrages. Le conteneur
+écoute sur `127.0.0.1:43217` (voir `docker-compose.yml`) — **jamais exposé directement sur
+internet**. Prévoir un reverse proxy TLS devant : le cookie de session est `secure` en production,
+l'authentification ne fonctionne donc pas en HTTP simple.
 
-Le conteneur écoute sur `127.0.0.1:43217` par défaut (`docker-compose.yml`) — jamais exposé
-directement sur internet. **Adapter ce port si besoin** (conflit avec un autre service sur le même
-serveur : vérifier avant coup avec `sudo ss -ltnp | grep :<port>`). Prévoir un reverse proxy
-(Apache/nginx/Caddy) devant pour le HTTPS : le cookie de session est marqué `secure` en
-production, donc l'authentification ne fonctionnera pas en HTTP simple. Exemple de vhost Apache :
+<details>
+<summary>Exemple de vhost Apache</summary>
 
 ```apache
 <VirtualHost *:443>
@@ -102,25 +85,25 @@ production, donc l'authentification ne fonctionnera pas en HTTP simple. Exemple 
   SSLCertificateKeyFile /chemin/vers/grimoire.key
 </VirtualHost>
 ```
+</details>
 
 ### Dépannage
 
-- **`SQLITE_CANTOPEN` dans les logs** (`docker-compose logs grimoire`) — permissions sur `./content`/`./data`,
-  voir la commande `chown` ci-dessus.
-- **Le build reste bloqué sans rien afficher** — `better-sqlite3` compile un module natif au
-  premier `npm install` (dans l'image) ; ça peut prendre plusieurs minutes sans sortie visible.
-  Vérifier l'accès réseau sortant du conteneur avant de conclure à un blocage :
-  ```bash
-  docker run --rm node:20-bookworm-slim node -e "fetch('https://registry.npmjs.org', {signal: AbortSignal.timeout(8000)}).then(r=>console.log(r.status)).catch(e=>console.log('ERREUR:', e.message))"
-  ```
-- **Port déjà utilisé** — changer le port hôte dans `docker-compose.yml` (`"127.0.0.1:<port>:3000"`).
+- **`SQLITE_CANTOPEN`** (`docker compose logs grimoire`) — permissions sur `content/`/`data/`,
+  voir le `chown` ci-dessus.
+- **Build figé sans sortie** — `better-sqlite3` compile un module natif au premier `npm install`
+  (plusieurs minutes). Vérifier l'accès réseau sortant du conteneur avant de conclure à un blocage.
+- **Port déjà utilisé** — changer le port hôte dans `docker-compose.yml`
+  (`"127.0.0.1:<port>:3000"`).
 
-## Gestion des comptes
+## Comptes
 
-Pas d'auto-inscription : les comptes sont créés en ligne de commande par un administrateur.
+Pas d'auto-inscription : les comptes sont créés en CLI par un administrateur. Le mot de passe est
+demandé de façon interactive (saisie masquée + confirmation), jamais passé en argument — il ne
+finit donc ni dans l'historique du shell ni dans `ps`.
 
 ```bash
-npx tsx scripts/create-user.ts <identifiant> <mot-de-passe>
+npx tsx scripts/create-user.ts <identifiant>
 ```
 
 ## Scripts
@@ -131,42 +114,37 @@ npx tsx scripts/create-user.ts <identifiant> <mot-de-passe>
 | `npm run build` | Build de production |
 | `npm run start` | Démarre le build de production |
 | `npm run lint` | Lint (ESLint) |
-| `npx tsx scripts/create-user.ts <user> <pass>` | Crée un compte utilisateur (crée aussi la base SQLite si besoin) |
-| `npx tsx scripts/reindex.ts` | Reconstruit l'index de recherche (exécuté aussi automatiquement au démarrage) |
+| `npx tsx scripts/create-user.ts <user>` | Crée un compte (mot de passe demandé, masqué) |
+| `npx tsx scripts/reindex.ts` | Reconstruit l'index de recherche (aussi lancé au démarrage) |
 
-## Structure du projet
+## Structure
 
 ```
-app/              Pages et routes API (Next.js App Router)
-  api/
-    fiches/       Lecture, création, édition
-    folders/      Créer / renommer / déplacer / supprimer dossiers et fiches
-    import/       Import par lot (fichiers et/ou dossiers déposés)
-    assets/       Upload et service des images
-    locks/        Verrou d'édition informatif ("en cours d'édition par X")
-    search/       Recherche full-text
-components/       Composants React (éditeur, arborescence, dropzones, recherche…)
+app/            Pages et routes API (App Router)
+  api/          fiches · folders · import · assets · locks · search
+components/      Éditeur, arborescence, dropzones, recherche
 lib/
-  auth/           Sessions, mots de passe, rate-limit
-  content/        Lecture/écriture des fiches et images, verrou d'édition, résolution sûre des
-                  chemins, rendu Markdown
-  db/             Client SQLite, index de recherche
-  client/         Petits utilitaires côté navigateur (upload, drag-and-drop, fetch JSON)
-scripts/          Scripts d'administration (création de compte, reindex)
-content/          Fiches Markdown et images (non versionné, données runtime)
-data/             Base SQLite (non versionné, données runtime)
+  auth/         Sessions, mots de passe, rate-limit
+  content/      Lecture/écriture fiches & images, verrou d'édition, chemins sûrs, rendu Markdown
+  db/           Client SQLite, index de recherche
+  client/       Utilitaires navigateur (upload, drag-and-drop, fetch)
+scripts/        Administration (création de compte, reindex)
+content/        Fiches & images — données runtime, non versionné
+data/           Base SQLite — données runtime, non versionné
 ```
 
 ## Sécurité
 
-- Toute route qui touche au disque passe par une résolution de chemin qui rejette
-  slugs invalides, `..` et séparateurs, et vérifie que le chemin final reste sous le
-  dossier de contenu (protection contre le path traversal)
-- Rendu Markdown sanitizé côté serveur (`rehype-sanitize`)
-- Images validées par signature binaire (magic bytes), pas par extension ou Content-Type déclaré
-  par le navigateur — SVG exclu (risque XSS), 8 Mo max
-- Cookies de session `httpOnly`, `sameSite=lax`, `secure` en production
-- Rate-limit basique sur la connexion
+- Résolution de chemin centralisée rejetant `..`, séparateurs et slugs invalides, et vérifiant que
+  le chemin final reste sous le dossier de contenu (anti path-traversal).
+- Rendu Markdown sanitizé côté serveur (`rehype-sanitize`).
+- Images validées par signature binaire (magic bytes), pas par extension ni Content-Type déclaré —
+  SVG exclu (XSS), 8 Mo max.
+- Cookies de session `httpOnly`, `sameSite=lax`, `secure` en production.
+- Rate-limit sur la connexion.
+- Le dossier `data/` (hashs de mots de passe, texte des fiches) est créé en `700`.
+
+Voir [PLAN.md](PLAN.md) pour les choix d'architecture et le journal des correctifs.
 
 ## Licence
 

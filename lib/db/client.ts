@@ -23,7 +23,8 @@ function initSchema(database: Database.Database): void {
 
 export function getDb(): Database.Database {
   if (!db) {
-    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    // 0o700 : la base contient les hashs de mots de passe et le texte intégral des fiches.
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true, mode: 0o700 });
     db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL");
     initSchema(db);
