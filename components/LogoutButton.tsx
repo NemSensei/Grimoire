@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { LogOutIcon } from "@/components/icons";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -12,8 +13,13 @@ export function LogoutButton() {
   }
 
   return (
-    <button onClick={handleLogout} className="text-sm text-neutral-400 hover:text-neutral-100">
-      Déconnexion
+    <button
+      onClick={handleLogout}
+      title="Déconnexion"
+      aria-label="Déconnexion"
+      className="rounded-md p-2 text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+    >
+      <LogOutIcon />
     </button>
   );
 }

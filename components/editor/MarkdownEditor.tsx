@@ -1,9 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState, type ChangeEvent, type ClipboardEvent } from "react";
+import { useEffect, useEffectEvent, useState, type ChangeEvent, type ClipboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { uploadImage } from "@/lib/client/upload-image";
+import { useIsDark } from "@/lib/client/theme";
+import { folderLabel } from "@/lib/content/labels";
+import { ChevronLeftIcon } from "@/components/icons";
 
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
 
@@ -15,6 +18,7 @@ interface Props {
 
 export function MarkdownEditor({ segments, initialContent, initialMtimeMs }: Props) {
   const router = useRouter();
+  const dark = useIsDark();
   const [value, setValue] = useState(initialContent);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,15 +142,41 @@ export function MarkdownEditor({ segments, initialContent, initialMtimeMs }: Pro
     }
   }
 
+  // Ctrl/⌘ S : sauvegarde sans quitter le clavier.
+  const onSaveShortcut = useEffectEvent((event: KeyboardEvent) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      if (!saving) void handleSave();
+    }
+  });
+
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => onSaveShortcut(event);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, []);
+
+  const dirty = value !== initialContent;
+
   return (
-    <div className="flex flex-col gap-4" data-color-mode="dark">
-      <div className="flex items-center justify-between">
-        <a href={ficheHref} className="text-sm text-neutral-400 hover:text-neutral-100">
-          ← Annuler
-        </a>
-        <div className="flex items-center gap-4">
-          <label className="cursor-pointer text-sm text-neutral-400 underline hover:text-neutral-100">
-            {uploadingImage ? "Envoi..." : "+ Image"}
+    <div className="mx-auto flex max-w-6xl flex-col gap-4" data-color-mode={dark ? "dark" : "light"}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <a
+            href={ficheHref}
+            className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+          >
+            <ChevronLeftIcon width={15} height={15} />
+            Annuler
+          </a>
+          <span className="truncate text-sm text-fg-subtle">
+            {[...folder.map(folderLabel), segments[segments.length - 1]].join(" › ")}
+            {dirty && <span className="ml-2 text-amber-600 dark:text-amber-400">● non sauvegardé</span>}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg">
+            {uploadingImage ? "Envoi…" : "+ Image"}
             <input
               type="file"
               accept="image/png,image/jpeg,image/gif,image/webp"
@@ -158,32 +188,34 @@ export function MarkdownEditor({ segments, initialContent, initialMtimeMs }: Pro
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded bg-neutral-100 px-4 py-1.5 text-sm font-medium text-neutral-900 disabled:opacity-50"
+            title="Ctrl+S"
+            className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {saving ? "Sauvegarde..." : "Sauvegarder"}
+            {saving ? "Sauvegarde…" : "Sauvegarder"}
           </button>
         </div>
       </div>
 
       {lockHeldBy && (
-        <p className="rounded border border-amber-700 bg-amber-950 px-3 py-2 text-sm text-amber-300">
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
           ⚠️ Cette fiche est en cours d&apos;édition par <strong>{lockHeldBy}</strong>. Vous pouvez continuer, mais
           vos modifications risquent d&apos;entrer en conflit à la sauvegarde.
         </p>
       )}
       {conflict && (
-        <p className="rounded border border-amber-700 bg-amber-950 px-3 py-2 text-sm text-amber-300">
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
           Cette fiche a été modifiée par quelqu&apos;un d&apos;autre depuis son ouverture. Rechargez la page pour
           récupérer la dernière version avant de continuer.
         </p>
       )}
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      {imageError && <p className="text-sm text-red-400">{imageError}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {imageError && <p className="text-sm text-red-600 dark:text-red-400">{imageError}</p>}
 
       <MDEditor
         value={value}
         onChange={(v) => setValue(v ?? "")}
-        height={600}
+        height="calc(100vh - 12rem)"
+        visibleDragbar={false}
         textareaProps={{ onPaste: handlePaste }}
       />
     </div>

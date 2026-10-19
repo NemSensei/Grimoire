@@ -1,26 +1,14 @@
 import { getDb } from "./client";
-import { listTree, readFiche, type TreeNode } from "@/lib/content/fs";
+import { flattenFiches, listTree, readFiche } from "@/lib/content/fs";
+import { SNIPPET_MARK_START, SNIPPET_MARK_END } from "@/lib/search-marks";
 
-export const SNIPPET_MARK_START = "";
-export const SNIPPET_MARK_END = "";
+export { SNIPPET_MARK_START, SNIPPET_MARK_END };
 
 export interface SearchResult {
   path: string[];
   title: string;
   folder: string;
   snippet: string;
-}
-
-function flattenFiches(nodes: TreeNode[]): { path: string[] }[] {
-  const result: { path: string[] }[] = [];
-  for (const node of nodes) {
-    if (node.type === "fiche") {
-      result.push({ path: node.path });
-    } else {
-      result.push(...flattenFiches(node.children));
-    }
-  }
-  return result;
 }
 
 /**

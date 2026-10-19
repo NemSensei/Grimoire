@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { TreeNode } from "@/lib/content/fs";
 import { slugify } from "@/lib/content/slugify";
+import { folderLabel, ficheHref } from "@/lib/content/labels";
 import { postJson } from "@/lib/client/post-json";
+import { ChevronRightIcon, FilePlusIcon, FolderPlusIcon, BookIcon } from "@/components/icons";
 
 const DRAG_PATH_MIME = "application/x-grimoire-path";
 const DRAG_TYPE_MIME = "application/x-grimoire-type";
@@ -22,27 +24,43 @@ function handleDragStart(event: DragEvent, node: TreeNode) {
   event.dataTransfer.effectAllowed = "move";
 }
 
+function containsPath(node: TreeNode, pathname: string): boolean {
+  if (node.type === "fiche") return ficheHref(node.path) === pathname;
+  return node.children.some((child) => containsPath(child, pathname));
+}
+
 function CreateButtons({ parent, actions }: { parent: string[]; actions: TreeActions }) {
+  const btn =
+    "rounded p-1 text-fg-subtle transition-colors hover:bg-bg-muted hover:text-fg focus-visible:opacity-100";
   return (
-    <div className="hidden items-center gap-1 pr-1 group-hover:flex">
-      <button
-        type="button"
-        title="Nouveau dossier ici"
-        onClick={() => actions.onCreateFolder(parent)}
-        className="rounded px-1 text-xs text-neutral-500 hover:text-neutral-100"
-      >
-        📁+
+    <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      <button type="button" title="Nouveau dossier ici" onClick={() => actions.onCreateFolder(parent)} className={btn}>
+        <FolderPlusIcon width={14} height={14} />
       </button>
-      <button
-        type="button"
-        title="Nouvelle fiche ici"
-        onClick={() => actions.onCreateFiche(parent)}
-        className="rounded px-1 text-xs text-neutral-500 hover:text-neutral-100"
-      >
-        📄+
+      <button type="button" title="Nouvelle fiche ici" onClick={() => actions.onCreateFiche(parent)} className={btn}>
+        <FilePlusIcon width={14} height={14} />
       </button>
     </div>
   );
+}
+
+function useDropZone(onDrop: (e: DragEvent) => void) {
+  const [over, setOver] = useState(false);
+  return {
+    over,
+    props: {
+      onDragOver: (e: DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setOver(true);
+      },
+      onDragLeave: () => setOver(false),
+      onDrop: (e: DragEvent) => {
+        setOver(false);
+        onDrop(e);
+      },
+    },
+  };
 }
 
 function FolderNode({
@@ -54,41 +72,47 @@ function FolderNode({
   depth: number;
   actions: TreeActions;
 }) {
-  const [open, setOpen] = useState(true);
-  const [dragOver, setDragOver] = useState(false);
+  const pathname = usePathname();
+  const hasActive = containsPath(node, pathname);
+  const [open, setOpen] = useState(hasActive);
+  const [prevHasActive, setPrevHasActive] = useState(hasActive);
+  const drop = useDropZone((e) => actions.onDropEntry(e, node.path));
+
+  // Navigation vers une fiche de ce dossier (lien, recherche, page suivante...) : on le déplie.
+  if (hasActive !== prevHasActive) {
+    setPrevHasActive(hasActive);
+    if (hasActive) setOpen(true);
+  }
 
   return (
     <li>
       <div
-        className={`group flex items-center rounded ${
-          dragOver ? "bg-neutral-700 ring-1 ring-inset ring-neutral-500" : "hover:bg-neutral-800"
+        className={`group flex items-center rounded-md transition-colors ${
+          drop.over ? "bg-accent-soft ring-1 ring-inset ring-accent" : "hover:bg-bg-muted"
         }`}
-        style={{ paddingLeft: `${depth * 0.75 + 0.5}rem` }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          setDragOver(false);
-          actions.onDropEntry(e, node.path);
-        }}
+        {...drop.props}
       >
         <button
           type="button"
           draggable
           onDragStart={(e) => handleDragStart(e, node)}
           onClick={() => setOpen((o) => !o)}
-          className="flex flex-1 items-center gap-1 py-1 text-left text-sm text-neutral-300"
+          aria-expanded={open}
+          className={`flex min-w-0 flex-1 items-center gap-1.5 py-1.5 pl-2 text-left text-sm ${
+            depth === 0 ? "font-semibold text-fg" : "font-medium text-fg-muted"
+          }`}
         >
-          <span className="text-neutral-500">{open ? "▾" : "▸"}</span>
-          {node.name}
+          <ChevronRightIcon
+            width={14}
+            height={14}
+            className={`shrink-0 text-fg-subtle transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+          />
+          <span className="truncate">{folderLabel(node.name)}</span>
         </button>
         <CreateButtons parent={node.path} actions={actions} />
       </div>
       {open && node.children.length > 0 && (
-        <ul>
+        <ul className="my-0.5 ml-[0.95rem] space-y-px border-l border-border pl-2">
           {node.children.map((child) => (
             <TreeItem key={child.path.join("/")} node={child} depth={depth + 1} actions={actions} />
           ))}
@@ -98,9 +122,9 @@ function FolderNode({
   );
 }
 
-function FicheNode({ node, depth }: { node: Extract<TreeNode, { type: "fiche" }>; depth: number }) {
+function FicheNode({ node }: { node: Extract<TreeNode, { type: "fiche" }> }) {
   const pathname = usePathname();
-  const href = `/fiche/${node.path.map(encodeURIComponent).join("/")}`;
+  const href = ficheHref(node.path);
   const active = pathname === href;
 
   return (
@@ -109,10 +133,10 @@ function FicheNode({ node, depth }: { node: Extract<TreeNode, { type: "fiche" }>
         href={href}
         draggable
         onDragStart={(e) => handleDragStart(e, node)}
-        className={`block truncate rounded px-2 py-1 text-sm hover:bg-neutral-800 ${
-          active ? "bg-neutral-800 text-neutral-50" : "text-neutral-400"
+        aria-current={active ? "page" : undefined}
+        className={`block truncate rounded-md px-2.5 py-1.5 text-sm transition-colors ${
+          active ? "bg-accent-soft font-medium text-accent" : "text-fg-muted hover:bg-bg-muted hover:text-fg"
         }`}
-        style={{ paddingLeft: `${depth * 0.75 + 1.25}rem` }}
       >
         {node.title}
       </Link>
@@ -124,14 +148,14 @@ function TreeItem({ node, depth, actions }: { node: TreeNode; depth: number; act
   return node.type === "folder" ? (
     <FolderNode node={node} depth={depth} actions={actions} />
   ) : (
-    <FicheNode node={node} depth={depth} />
+    <FicheNode node={node} />
   );
 }
 
 export function TreeView({ nodes }: { nodes: TreeNode[] }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [error, setError] = useState<string | null>(null);
-  const [rootDragOver, setRootDragOver] = useState(false);
 
   async function createFolder(parent: string[]) {
     const name = window.prompt("Nom du nouveau dossier :");
@@ -203,38 +227,43 @@ export function TreeView({ nodes }: { nodes: TreeNode[] }) {
     onDropEntry: (event, targetFolder) => void dropEntry(event, targetFolder),
   };
 
+  const rootDrop = useDropZone((e) => actions.onDropEntry(e, []));
+
   return (
-    <div>
-      <div
-        className={`group mb-1 flex items-center justify-between rounded px-2 ${
-          rootDragOver ? "bg-neutral-700 ring-1 ring-inset ring-neutral-500" : "hover:bg-neutral-800"
+    <nav aria-label="Arborescence des fiches" className="text-sm">
+      <Link
+        href="/"
+        className={`mb-3 flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors ${
+          pathname === "/" ? "bg-accent-soft font-medium text-accent" : "text-fg-muted hover:bg-bg-muted hover:text-fg"
         }`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          setRootDragOver(true);
-        }}
-        onDragLeave={() => setRootDragOver(false)}
-        onDrop={(e) => {
-          setRootDragOver(false);
-          actions.onDropEntry(e, []);
-        }}
       >
-        <span className="py-1 text-xs uppercase tracking-wide text-neutral-500">Fiches</span>
+        <BookIcon width={15} height={15} />
+        Accueil
+      </Link>
+
+      <div
+        className={`group mb-1 flex items-center justify-between rounded-md pl-2.5 ${
+          rootDrop.over ? "bg-accent-soft ring-1 ring-inset ring-accent" : ""
+        }`}
+        {...rootDrop.props}
+      >
+        <span className="py-1 text-[0.7rem] font-semibold uppercase tracking-wider text-fg-subtle">Fiches</span>
         <CreateButtons parent={[]} actions={actions} />
       </div>
 
-      {error && <p className="mb-1 px-2 text-xs text-red-400">{error}</p>}
+      {error && (
+        <p className="mb-2 rounded-md bg-red-500/10 px-2.5 py-1.5 text-xs text-red-600 dark:text-red-400">{error}</p>
+      )}
 
       {nodes.length === 0 ? (
-        <p className="px-2 py-1 text-sm text-neutral-500">Aucune fiche pour l’instant.</p>
+        <p className="px-2.5 py-1 text-fg-subtle">Aucune fiche pour l’instant.</p>
       ) : (
-        <ul className="space-y-0.5">
+        <ul className="space-y-px">
           {nodes.map((node) => (
             <TreeItem key={node.path.join("/")} node={node} depth={0} actions={actions} />
           ))}
         </ul>
       )}
-    </div>
+    </nav>
   );
 }

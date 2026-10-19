@@ -37,20 +37,21 @@ export function NewFicheForm({ folders }: { folders: string[][] }) {
   }
 
   return (
-    <div className="max-w-md space-y-8">
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold">Nouvelle fiche</h1>
+    <div className="mx-auto max-w-2xl space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Nouvelle fiche</h1>
+        <p className="mt-2 text-fg-muted">Créez une fiche vierge ou importez des fichiers Markdown existants.</p>
       </div>
 
       <div className="space-y-1">
-        <label className="block text-sm text-neutral-400" htmlFor="folder">
+        <label className="block text-sm font-medium text-fg-muted" htmlFor="folder">
           Dossier
         </label>
         <select
           id="folder"
           value={folderIndex}
           onChange={(e) => setFolderIndex(Number(e.target.value))}
-          className="w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-2"
+          className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-fg outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/20"
         >
           {folders.map((folder, i) => (
             <option key={folder.join("/")} value={i}>
@@ -60,10 +61,10 @@ export function NewFicheForm({ folders }: { folders: string[][] }) {
         </select>
       </div>
 
-      <form onSubmit={handleCreate} className="space-y-4 rounded-lg border border-neutral-800 p-4">
-        <h2 className="text-sm font-medium text-neutral-300">Créer une fiche vierge</h2>
+      <form onSubmit={handleCreate} className="space-y-4 rounded-xl border border-border p-5">
+        <h2 className="font-semibold text-fg">Créer une fiche vierge</h2>
         <div className="space-y-1">
-          <label className="block text-sm text-neutral-400" htmlFor="title">
+          <label className="block text-sm font-medium text-fg-muted" htmlFor="title">
             Titre
           </label>
           <input
@@ -71,14 +72,14 @@ export function NewFicheForm({ folders }: { folders: string[][] }) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
-            className="w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-2"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-fg outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/20"
           />
         </div>
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button
           type="submit"
           disabled={saving}
-          className="rounded bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 disabled:opacity-50"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {saving ? "Création..." : "Créer et éditer"}
         </button>

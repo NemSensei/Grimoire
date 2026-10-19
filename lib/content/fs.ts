@@ -15,6 +15,7 @@ export interface TreeFiche {
   name: string;
   title: string;
   path: string[];
+  mtimeMs: number;
 }
 
 export type TreeNode = TreeFolder | TreeFiche;
@@ -26,33 +27,72 @@ export function extractTitle(markdown: string, fallback: string): string {
 
 async function walk(dirAbs: string, relSegments: string[]): Promise<TreeNode[]> {
   const entries = await fs.readdir(dirAbs, { withFileTypes: true });
-  const nodes: TreeNode[] = [];
 
-  for (const entry of entries) {
-    if (entry.name.startsWith(".")) continue;
-    const segments = [...relSegments, entry.name];
-
-    if (entry.isDirectory()) {
-      const children = await walk(path.join(dirAbs, entry.name), segments);
-      nodes.push({ type: "folder", name: entry.name, path: segments, children });
-    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+  // Lectures en parallèle : sur quelques centaines de fiches, l'essentiel du coût est l'I/O.
+  const nodes = await Promise.all(
+    entries.map(async (entry): Promise<TreeNode | null> => {
+      if (entry.name.startsWith(".")) return null;
+      const segments = [...relSegments, entry.name];
       const abs = path.join(dirAbs, entry.name);
-      const content = await fs.readFile(abs, "utf-8");
-      nodes.push({ type: "fiche", name: entry.name, title: extractTitle(content, entry.name), path: segments });
-    }
-  }
 
-  nodes.sort((a, b) => {
-    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+      if (entry.isDirectory()) {
+        return { type: "folder", name: entry.name, path: segments, children: await walk(abs, segments) };
+      }
+      if (entry.isFile() && entry.name.endsWith(".md")) {
+        const [content, stat] = await Promise.all([fs.readFile(abs, "utf-8"), fs.stat(abs)]);
+        return {
+          type: "fiche",
+          name: entry.name,
+          title: extractTitle(content, entry.name),
+          path: segments,
+          mtimeMs: stat.mtimeMs,
+        };
+      }
+      return null;
+    }),
+  );
 
-  return nodes;
+  return nodes
+    .filter((node): node is TreeNode => node !== null)
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+/**
+ * Cache mémoire de l'arborescence : le layout la demande à chaque rendu, et la reconstruire
+ * implique de lire toutes les fiches (pour leur titre). Invalidé explicitement par chaque
+ * mutation ci-dessous ; le TTL ne sert qu'à rattraper une modification faite directement sur
+ * le disque. Stocké sur globalThis car Next.js peut charger ce module dans plusieurs bundles
+ * (pages vs route handlers) au sein du même process — un `let` local ne serait pas partagé.
+ */
+const TREE_TTL_MS = 30_000;
+const cacheHolder = globalThis as { __grimoireTree?: { at: number; promise: Promise<TreeNode[]> } | null };
+
+export function invalidateTree(): void {
+  cacheHolder.__grimoireTree = null;
 }
 
 export async function listTree(): Promise<TreeNode[]> {
-  await fs.mkdir(CONTENT_ROOT, { recursive: true });
-  return walk(CONTENT_ROOT, []);
+  const cached = cacheHolder.__grimoireTree;
+  if (cached && Date.now() - cached.at < TREE_TTL_MS) return cached.promise;
+
+  const promise = fs.mkdir(CONTENT_ROOT, { recursive: true }).then(() => walk(CONTENT_ROOT, []));
+  cacheHolder.__grimoireTree = { at: Date.now(), promise };
+  // Ne pas garder en cache une lecture échouée.
+  promise.catch(() => invalidateTree());
+  return promise;
+}
+
+/** Fiches dans l'ordre d'affichage de la sidebar (parcours en profondeur). */
+export function flattenFiches(nodes: TreeNode[]): TreeFiche[] {
+  const result: TreeFiche[] = [];
+  for (const node of nodes) {
+    if (node.type === "fiche") result.push(node);
+    else result.push(...flattenFiches(node.children));
+  }
+  return result;
 }
 
 export interface FicheContent {
@@ -83,6 +123,7 @@ export async function writeFiche(
   }
 
   await fs.writeFile(abs, content, "utf-8");
+  invalidateTree();
   const newStat = await fs.stat(abs);
   return { mtimeMs: newStat.mtimeMs };
 }
@@ -115,6 +156,7 @@ async function writeNewFiche(folderSegments: string[], slugBase: string, content
 
   const segments = [...folderSegments, filename];
   await fs.writeFile(resolveSafeFichePath(segments), content, "utf-8");
+  invalidateTree();
   return segments;
 }
 
@@ -146,6 +188,7 @@ export async function importFiches(baseFolder: string[], entries: ImportEntry[])
 
 export async function createFolder(segments: string[]): Promise<void> {
   await fs.mkdir(resolveSafeFolderPath(segments), { recursive: true });
+  invalidateTree();
 }
 
 /** Renomme ou déplace une fiche ou un dossier. Refuse d'écraser une entrée existante à destination. */
@@ -166,6 +209,7 @@ export async function moveEntry(fromSegments: string[], toSegments: string[]): P
 
   await fs.mkdir(path.dirname(toAbs), { recursive: true });
   await fs.rename(fromAbs, toAbs);
+  invalidateTree();
 }
 
 /** Supprime une fiche, ou un dossier — le dossier doit être vide (ENOTEMPTY sinon, à charge de l'appelant de le traduire). */
@@ -176,4 +220,5 @@ export async function deleteEntry(segments: string[]): Promise<void> {
   } else {
     await fs.rmdir(resolveSafeFolderPath(segments));
   }
+  invalidateTree();
 }

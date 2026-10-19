@@ -59,8 +59,8 @@ export function ImportDropzone({ folder }: { folder: string[] }) {
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-neutral-800 p-4">
-      <h2 className="text-sm font-medium text-neutral-300">Importer des fichiers ou un dossier</h2>
+    <div className="space-y-3 rounded-xl border border-border p-5">
+      <h2 className="font-semibold text-fg">Importer des fichiers ou un dossier</h2>
 
       <div
         onDragOver={(event) => {
@@ -69,28 +69,28 @@ export function ImportDropzone({ folder }: { folder: string[] }) {
         }}
         onDragLeave={() => setDragActive(false)}
         onDrop={handleDrop}
-        className={`rounded-lg border-2 border-dashed p-6 text-center text-sm transition-colors ${
-          dragActive ? "border-neutral-400 bg-neutral-900 text-neutral-300" : "border-neutral-700 text-neutral-500"
+        className={`rounded-xl border-2 border-dashed p-8 text-center text-sm transition-colors ${
+          dragActive ? "border-accent bg-accent-soft text-accent" : "border-border text-fg-subtle"
         }`}
       >
         <p>
           Glissez-déposez des fichiers <code>.md</code> ou un dossier ici
         </p>
         <p className="mt-1 text-xs">ou</p>
-        <label className="mt-1 inline-block cursor-pointer text-neutral-300 underline">
+        <label className="mt-1 inline-block cursor-pointer font-medium text-accent hover:underline">
           choisir des fichiers
           <input type="file" accept=".md" multiple className="hidden" onChange={handleInputChange} />
         </label>
       </div>
 
-      {importing && <p className="text-sm text-neutral-400">Import en cours...</p>}
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {importing && <p className="text-sm text-fg-muted">Import en cours...</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {summary && (
         <div className="text-sm">
-          <p className="text-neutral-300">{summary.imported.length} fiche(s) importée(s).</p>
+          <p className="text-fg-muted">{summary.imported.length} fiche(s) importée(s).</p>
           {summary.skipped.length > 0 && (
-            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-neutral-500">
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-fg-subtle">
               {summary.skipped.map((s) => (
                 <li key={s.relativePath}>
                   {s.relativePath} — {s.reason}

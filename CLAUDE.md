@@ -24,7 +24,8 @@ d'architecture, l'avancement étape par étape, et le journal des correctifs. Vo
   en CLI via `scripts/create-user.ts`)
 - Rendu Markdown : `unified`/`remark`/`rehype`, sanitizé côté serveur (`rehype-sanitize`)
 - Éditeur : `@uiw/react-md-editor`
-- Style : Tailwind CSS
+- Style : Tailwind CSS, couleurs via les tokens de thème (`bg-bg`, `text-fg-muted`, `border-border`,
+  `text-accent`…) définis dans `app/globals.css` — pas de couleurs `neutral-*` codées en dur
 
 ## Conventions
 - **Anti path-traversal** : toute route qui touche au disque passe par
@@ -39,6 +40,9 @@ d'architecture, l'avancement étape par étape, et le journal des correctifs. Vo
   (`app/api/**/route.ts`), y compris les uploads multipart.
 - **`proxy.ts`** (pas `middleware.ts` — convention Next.js 16) protège tout sauf `/login` et
   `/api/auth/login`.
+- **Caches mémoire** : l'arborescence (`listTree`) et les rendus Markdown sont mis en cache sur
+  `globalThis`. Toute écriture de fiche/dossier doit passer par `lib/content/fs.ts` (qui appelle
+  `invalidateTree()`), sinon la sidebar restera périmée jusqu'à 30 s.
 - **Images** validées par signature binaire (magic bytes), jamais par extension ou Content-Type
   déclaré par le client. SVG explicitement exclu (XSS).
 

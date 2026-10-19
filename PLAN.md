@@ -309,3 +309,36 @@ l'écrasement — ce verrou est informatif seulement, ne bloque ni la frappe ni 
 - [ ] Vérif côté navigateur (bannière affichée en pratique, libération à la fermeture d'onglet) :
       **non testée** — pas d'outil de contrôle navigateur dans ce sandbox ; à valider manuellement
       avec deux sessions différentes
+
+---
+
+## Amélioration — performances et interface façon GitBook
+
+**Performances**
+- [x] `lib/content/fs.ts` — cache mémoire de l'arborescence (`listTree`), partagé via `globalThis`
+      (Next.js charge le module dans plusieurs bundles : pages et route handlers), invalidé par
+      chaque mutation de `fs.ts` (`invalidateTree()`), TTL 30 s pour rattraper une modification
+      faite directement sur le disque. Lecture du disque parallélisée (`Promise.all`).
+- [x] `lib/content/markdown.ts` — cache des rendus (`renderFiche`) indexé par chemin + mtime,
+      300 entrées max : la coloration syntaxique n'est recalculée qu'après une édition.
+- [x] Recherche instantanée (palette Ctrl/⌘ K, débounce 120 ms, requêtes précédentes annulées)
+      au lieu d'un aller-retour de page ; squelette `loading.tsx` pendant les navigations.
+- [x] Mesuré sur le build de production : 2ᵉ rendu d'une fiche ≈ 15 ms (vs ≈ 55 ms à froid).
+
+**Interface**
+- [x] Thème clair/sombre (tokens CSS dans `app/globals.css`, classe `.dark` posée par un script
+      inline avant le premier rendu, bascule dans l'en-tête), polices Inter + JetBrains Mono.
+- [x] Mise en page GitBook : en-tête collant, sidebar repliable avec ligne de guide et page
+      active en couleur d'accent (dossiers dépliés automatiquement vers la page courante),
+      tiroir sur mobile, sommaire « Sur cette page » avec suivi du défilement, fil d'Ariane,
+      date de modification / temps de lecture, navigation précédent/suivant.
+- [x] Rendu Markdown : ancres `#` sur les titres, blocs de code avec langage + bouton Copier,
+      callouts `> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION]` et conversion des
+      `{% hint style="..." %}` des exports GitBook. Le HTML ajouté après `rehype-sanitize`
+      (ancres, en-têtes de code) est généré par nous, jamais issu de la fiche.
+- [x] Accueil (sections en cartes, fiches récentes), login, création/import, gestion des
+      dossiers et éditeur (thème synchronisé, Ctrl+S, indicateur « non sauvegardé ») restylés.
+- [x] Vérif : `tsc`, `eslint`, `next build` OK ; captures headless (Chromium) en clair, sombre et
+      mobile ; création/suppression via l'API reflétée immédiatement sur l'accueil.
+- [ ] Non testé en interaction réelle : palette de recherche au clavier, bouton Copier,
+      surlignage du sommaire au défilement, tiroir mobile — à valider manuellement.
