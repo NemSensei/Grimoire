@@ -342,3 +342,51 @@ l'écrasement — ce verrou est informatif seulement, ne bloque ni la frappe ni 
       mobile ; création/suppression via l'API reflétée immédiatement sur l'accueil.
 - [ ] Non testé en interaction réelle : palette de recherche au clavier, bouton Copier,
       surlignage du sommaire au défilement, tiroir mobile — à valider manuellement.
+
+---
+
+## Amélioration — éditeur façon Obsidian, historique, titres et liens
+
+**Éditeur** (`components/editor/`)
+- [x] `@uiw/react-md-editor` remplacé par CodeMirror 6 : coloration Markdown dans le texte (titres
+      agrandis et colorés par niveau, marqueurs atténués, code en ligne, blocs de code avec
+      coloration du langage, citations et callouts avec bordure colorée, `[[liens]]` surlignés).
+- [x] Modes Édition / Côte à côte / Aperçu ; l'aperçu passe par `POST /api/preview`, donc par le
+      même moteur de rendu que les fiches publiées.
+- [x] Barre d'outils, raccourcis (Ctrl+B/I/1/2/3, Ctrl+F), listes continuées à l'Entrée,
+      autocomplétion `[[`, images par collage / glisser-déposer / bouton, Ctrl+S qui enregistre
+      sans quitter (le mtime attendu est mis à jour), alerte avant de quitter avec des modifications.
+
+**Historique** (`lib/content/history.ts`)
+- [x] `content/` devient un dépôt git interne, initialisé au démarrage (`instrumentation.ts`, qui
+      commite aussi les modifications faites hors de l'application). Chaque route de mutation
+      commite au nom de l'utilisateur via `afterMutation()`.
+- [x] git appelé par `execFile` (pas de shell), configuration de l'hôte ignorée
+      (`GIT_CONFIG_GLOBAL=/dev/null`, hooks désactivés, pas de signature), commandes sérialisées.
+      Sans git, l'historique est désactivé mais l'application fonctionne.
+- [x] `/history` : activité récente + corbeille (fiches supprimées restaurables) ;
+      `/history/<fiche>` : versions, différences, contenu d'une version, restauration.
+- [x] Durcissement : tout segment de chemin commençant par `.` est refusé (protège `content/.git`).
+- [x] Dockerfile : git installé dans l'image d'exécution.
+
+**Titres** — le titre est le H1 qui ouvre la fiche (hors bloc de code), sinon le nom de fichier
+sans préfixe numérique (« 01-attacking-child-parents.md » → « Attacking child parents »). Une
+fiche sans titre en tête l'affiche tout de même en haut de page.
+
+**Liens** (`lib/content/links.ts`)
+- [x] `[[cible]]`, `[[cible#Section]]`, `[[cible|libellé]]` ; cible = nom de fichier, chemin ou
+      titre (casse et accents ignorés). Lien vers une fiche inexistante : atténué, mène à sa création.
+- [x] Table SQLite `links`, reconstruite avec l'index de recherche → « Référencée par » sur chaque
+      fiche (liens `[[…]]` et liens Markdown `/fiche/…`).
+- [x] La clé du cache de rendu inclut la version de l'arborescence (la résolution des liens en dépend).
+- [x] Correctif au passage : le schéma de sanitization par défaut vidait les classes posées sur
+      `a`/`code` (d'où `hljs` absent) ; il les autorise désormais.
+
+- [x] Vérif sur une copie du contenu : initialisation de l'historique, création → modification →
+      restauration → suppression → récupération depuis la corbeille (auteurs corrects), liens
+      résolus / manquants / avec section, rétroliens, refus de `.git` ; captures de l'éditeur
+      (clair/sombre), de l'historique et de l'activité.
+- [ ] Non testé en interaction réelle : frappe dans l'éditeur, autocomplétion `[[`, raccourcis,
+      collage / glisser-déposer d'images, mode côte à côte.
+- Connu : une fiche introuvable affiche bien la page 404 mais avec un statut HTTP 200, à cause du
+  squelette `loading.tsx` (le rendu est déjà en streaming quand l'erreur survient).

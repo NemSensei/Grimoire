@@ -6,7 +6,7 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { SearchDialog } from "@/components/shell/SearchDialog";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { MobileNav } from "@/components/shell/MobileNav";
-import { BookIcon, PlusIcon, SettingsIcon } from "@/components/icons";
+import { BookIcon, ClockIcon, PlusIcon, SettingsIcon } from "@/components/icons";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [tree, user] = await Promise.all([listTree(), requireUser()]);
@@ -37,6 +37,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               <PlusIcon width={15} height={15} />
               Nouvelle fiche
+            </Link>
+            <Link
+              href="/history"
+              title="Activité et corbeille"
+              aria-label="Activité et corbeille"
+              className="rounded-md p-2 text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+            >
+              <ClockIcon />
             </Link>
             <Link
               href="/folders"

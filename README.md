@@ -6,14 +6,19 @@ navigateur. Déploiement interne, multi-utilisateurs, sans rôles.
 
 ## Fonctionnalités
 
-- **Lecture** — rendu Markdown (GFM) avec coloration syntaxique, navigation par arborescence.
-- **Édition en ligne** — éditeur avec preview, sauvegarde sur disque, détection de conflit et
-  signalement de l'édition concurrente ("en cours d'édition par X").
-- **Images** — collage depuis le presse-papiers ou upload, insertion automatique du Markdown.
+- **Lecture** — interface façon GitBook (thème clair/sombre, sommaire, fil d'Ariane), rendu
+  Markdown (GFM) avec coloration syntaxique, encadrés `> [!NOTE]` et `{% hint %}`.
+- **Édition en ligne** — éditeur CodeMirror coloré façon Obsidian, modes édition / côte à côte /
+  aperçu, barre d'outils, Ctrl+S, détection de conflit et signalement de l'édition concurrente.
+- **Liens entre fiches** — `[[fiche]]`, `[[fiche#Section]]`, `[[fiche|libellé]]` avec
+  autocomplétion, et section « Référencée par » sur chaque fiche.
+- **Historique** — chaque modification est versionnée avec son auteur (dépôt git interne dans
+  `content/`) : comparaison des versions, restauration, corbeille des fiches supprimées.
+- **Images** — collage, glisser-déposer ou upload, insertion automatique du Markdown.
 - **Création & import** — fiche ou dossier en un clic ; import par glisser-déposer de fichiers
   `.md` ou de dossiers entiers (structure préservée).
 - **Organisation** — glisser-déposer dans l'arborescence, renommage, déplacement, suppression.
-- **Recherche** — full-text sur titre et contenu (SQLite FTS5).
+- **Recherche** — full-text instantanée sur titre et contenu (SQLite FTS5), palette Ctrl+K.
 - **Multi-utilisateurs** — comptes login/mot de passe, créés en CLI (pas d'auto-inscription).
 
 ## Stack
@@ -22,10 +27,11 @@ navigateur. Déploiement interne, multi-utilisateurs, sans rôles.
 |---|---|
 | Framework | [Next.js](https://nextjs.org) (App Router, TypeScript) |
 | Fiches | Fichiers `.md` bruts sur disque (pas de base de données pour le contenu) |
-| Comptes & recherche | SQLite (`better-sqlite3`) — table `users` + index FTS5 |
+| Comptes & recherche | SQLite (`better-sqlite3`) — table `users`, index FTS5, table des liens |
+| Historique | `git` (dépôt interne dans `content/`, géré par l'application) |
 | Auth | Sessions chiffrées (`iron-session`) + `bcryptjs` |
 | Rendu Markdown | `unified` / `remark` / `rehype`, sanitizé côté serveur |
-| Éditeur | `@uiw/react-md-editor` · Style : Tailwind CSS |
+| Éditeur | CodeMirror 6 · Style : Tailwind CSS |
 
 ## Démarrage
 
@@ -138,6 +144,8 @@ data/           Base SQLite — données runtime, non versionné
 - Résolution de chemin centralisée rejetant `..`, séparateurs et slugs invalides, et vérifiant que
   le chemin final reste sous le dossier de contenu (anti path-traversal).
 - Rendu Markdown sanitizé côté serveur (`rehype-sanitize`).
+- Aucun segment de chemin caché (`.git`...) n'est accepté. git est appelé sans shell, en ignorant
+  la configuration git de la machine (pas de hooks ni de signature hérités).
 - Images validées par signature binaire (magic bytes), pas par extension ni Content-Type déclaré —
   SVG exclu (XSS), 8 Mo max.
 - Cookies de session `httpOnly`, `sameSite=lax`, `secure` en production.

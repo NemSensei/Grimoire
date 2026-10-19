@@ -30,6 +30,10 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
+# git : historique des fiches (content/ est un dépôt git géré par l'application).
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --gid 1001 grimoire \
     && useradd --uid 1001 --gid grimoire --shell /usr/sbin/nologin --create-home grimoire \
     && mkdir -p /app/content /app/data \

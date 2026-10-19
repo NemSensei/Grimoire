@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { flattenFiches, listTree, type TreeFiche } from "@/lib/content/fs";
 import { ficheHref, folderLabel } from "@/lib/content/labels";
+import { timeAgo } from "@/lib/format";
 import { ChevronRightIcon, FileIcon, FolderIcon, PlusIcon, SearchIcon } from "@/components/icons";
-
-const relative = new Intl.RelativeTimeFormat("fr-FR", { numeric: "auto" });
 
 /** Fiches les plus récemment modifiées, avec leur ancienneté en toutes lettres. */
 function recentFiches(all: TreeFiche[], count: number): { fiche: TreeFiche; age: string }[] {
@@ -12,16 +11,6 @@ function recentFiches(all: TreeFiche[], count: number): { fiche: TreeFiche; age:
     .sort((a, b) => b.mtimeMs - a.mtimeMs)
     .slice(0, count)
     .map((fiche) => ({ fiche, age: timeAgo(fiche.mtimeMs, now) }));
-}
-
-function timeAgo(ms: number, now: number): string {
-  const minutes = Math.round((ms - now) / 60_000);
-  if (Math.abs(minutes) < 60) return relative.format(minutes, "minute");
-  const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 24) return relative.format(hours, "hour");
-  const days = Math.round(hours / 24);
-  if (Math.abs(days) < 30) return relative.format(days, "day");
-  return relative.format(Math.round(days / 30), "month");
 }
 
 function FicheRow({ fiche, meta }: { fiche: TreeFiche; meta?: string }) {

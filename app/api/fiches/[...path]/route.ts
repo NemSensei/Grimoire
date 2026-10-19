@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { readFiche, writeFiche, ConflictError } from "@/lib/content/fs";
 import { InvalidPathError } from "@/lib/content/paths";
-import { reindexAll } from "@/lib/db/search";
+import { afterMutation } from "@/lib/content/after-mutation";
 
 const putSchema = z.object({
   content: z.string(),
@@ -36,7 +36,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const result = await writeFiche(segments, parsed.data.content, parsed.data.expectedMtimeMs);
-    await reindexAll();
+    await afterMutation(`Modification de ${segments.join("/")}`);
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof InvalidPathError) {

@@ -1,6 +1,7 @@
 import { getDb } from "./client";
 import { flattenFiches, listTree, readFiche } from "@/lib/content/fs";
 import { SNIPPET_MARK_START, SNIPPET_MARK_END } from "@/lib/search-marks";
+import { buildLinkIndex, extractLinkedPaths } from "@/lib/content/links";
 
 export { SNIPPET_MARK_START, SNIPPET_MARK_END };
 
@@ -12,7 +13,8 @@ export interface SearchResult {
 }
 
 /**
- * Reconstruit entièrement l'index de recherche à partir du filesystem (source de vérité).
+ * Reconstruit entièrement l'index de recherche et la table des liens à partir du filesystem
+ * (source de vérité).
  * Appelé au démarrage et après chaque mutation — volume attendu (quelques centaines de fiches)
  * assez faible pour qu'un rebuild complet reste plus simple et plus sûr qu'un patch incrémental.
  */
@@ -33,11 +35,19 @@ export async function reindexAll(): Promise<void> {
     }),
   );
 
+  const linkIndex = buildLinkIndex(entries.map((e) => ({ path: e.path.split("/"), title: e.title })));
+
   const insert = db.prepare("INSERT INTO fiches_fts (path, title, content, folder) VALUES (?, ?, ?, ?)");
+  const insertLink = db.prepare("INSERT INTO links (source, target) VALUES (?, ?)");
   const rebuild = db.transaction((rows: typeof entries) => {
     db.exec("DELETE FROM fiches_fts");
+    db.exec("DELETE FROM links");
     for (const row of rows) {
       insert.run(row.path, row.title, row.content, row.folder);
+      for (const target of extractLinkedPaths(row.content, linkIndex)) {
+        const targetKey = target.join("/");
+        if (targetKey !== row.path) insertLink.run(row.path, targetKey);
+      }
     }
   });
 
@@ -84,4 +94,12 @@ export function searchFiches(query: string, limit = 20): SearchResult[] {
     folder: row.folder,
     snippet: row.snippet,
   }));
+}
+
+/** Chemins des fiches qui pointent vers `segments` (liens `[[…]]` ou liens Markdown /fiche/…). */
+export function backlinksOf(segments: string[]): string[][] {
+  const rows = getDb()
+    .prepare("SELECT DISTINCT source FROM links WHERE target = ? ORDER BY source")
+    .all(segments.join("/")) as { source: string }[];
+  return rows.map((row) => row.source.split("/"));
 }

@@ -1,6 +1,7 @@
 import { unified } from "unified";
 import { visit, SKIP } from "unist-util-visit";
 import type { Root, Element, ElementContent } from "hast";
+import type { Root as MdRoot, PhrasingContent } from "mdast";
 import type { VFile } from "vfile";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
@@ -9,14 +10,28 @@ import rehypeSlug from "rehype-slug";
 import rehypeHighlight from "rehype-highlight";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeStringify from "rehype-stringify";
+import { WIKILINK_RE, headingSlug, type LinkIndex } from "./links";
+import { ficheHref } from "./labels";
+
+type AttributeDefs = NonNullable<typeof defaultSchema.attributes>[string];
+
+/**
+ * Autorise toute classe sur l'élément. Les entrées `["className", ...valeurs]` du schéma par défaut
+ * sont retirées : elles l'emporteraient et videraient nos classes. Sans plugin rehype-raw, une
+ * fiche ne peut pas écrire de HTML : seules nos propres extensions posent des classes.
+ */
+function allowClassName(defs: AttributeDefs | undefined): AttributeDefs {
+  return [...(defs ?? []).filter((d) => !(Array.isArray(d) && d[0] === "className")), "className"];
+}
 
 const schema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
-    code: [...(defaultSchema.attributes?.code ?? []), "className"],
-    span: [...(defaultSchema.attributes?.span ?? []), "className"],
-    div: [...(defaultSchema.attributes?.div ?? []), "className"],
+    code: allowClassName(defaultSchema.attributes?.code),
+    span: allowClassName(defaultSchema.attributes?.span),
+    div: allowClassName(defaultSchema.attributes?.div),
+    a: allowClassName(defaultSchema.attributes?.a), // liens [[…]]
   },
 };
 
@@ -52,6 +67,48 @@ function rehypeWrapTables() {
       if (node.tagName !== "table" || !parent || typeof index !== "number") return undefined;
       parent.children.splice(index, 1, el("div", ["table-wrapper"], [node]));
       return SKIP;
+    });
+  };
+}
+
+/**
+ * Liens `[[…]]` entre fiches. L'index de résolution arrive par `file.data.linkIndex` pour garder
+ * un seul processeur figé. Les nœuds de code ne sont pas des nœuds `text` : leur contenu est ignoré.
+ */
+function remarkWikiLinks() {
+  return (tree: MdRoot, file: VFile) => {
+    const index = file.data.linkIndex as LinkIndex | undefined;
+    if (!index) return;
+
+    visit(tree, "text", (node, position, parent) => {
+      if (!parent || typeof position !== "number" || parent.type === "link" || parent.type === "linkReference") {
+        return undefined;
+      }
+      const value = node.value;
+      const pieces: PhrasingContent[] = [];
+      let last = 0;
+
+      for (const match of value.matchAll(WIKILINK_RE)) {
+        const [whole, target, section, label] = match;
+        if (match.index > last) pieces.push({ type: "text", value: value.slice(last, match.index) });
+        const fiche = index.resolve(target);
+        const text = label?.trim() || (section ? `${(fiche?.title ?? target).trim()} › ${section.trim()}` : fiche?.title ?? target.trim());
+        pieces.push({
+          type: "link",
+          url: fiche
+            ? `${ficheHref(fiche.path)}${section ? `#user-content-${headingSlug(section)}` : ""}`
+            : `/new?title=${encodeURIComponent(target.trim())}`,
+          title: fiche ? null : "Fiche inexistante — cliquer pour la créer",
+          children: [{ type: "text", value: text }],
+          data: { hProperties: { className: fiche ? ["wikilink"] : ["wikilink", "wikilink-missing"] } },
+        });
+        last = match.index + whole.length;
+      }
+
+      if (pieces.length === 0) return undefined;
+      if (last < value.length) pieces.push({ type: "text", value: value.slice(last) });
+      parent.children.splice(position, 1, ...pieces);
+      return position + pieces.length;
     });
   };
 }
@@ -160,6 +217,7 @@ function convertGitbookHints(markdown: string): string {
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
+  .use(remarkWikiLinks)
   .use(remarkRehype)
   .use(rehypeSlug)
   .use(rehypeHighlight)
@@ -171,20 +229,29 @@ const processor = unified()
 
 /**
  * Cache des rendus (coloration syntaxique comprise, le poste le plus coûteux) indexé par une clé
- * fournie par l'appelant — typiquement chemin + mtime, donc automatiquement périmé à l'édition.
+ * fournie par l'appelant. Elle doit inclure la version de l'arborescence : la résolution des
+ * liens `[[…]]` change quand une fiche est créée, renommée ou supprimée.
  * Sur globalThis pour survivre aux rechargements de module et être partagé entre bundles.
  */
 const RENDER_CACHE_MAX = 300;
 const holder = globalThis as { __grimoireRenderCache?: Map<string, RenderedFiche> };
 const renderCache = (holder.__grimoireRenderCache ??= new Map());
 
-export async function renderFiche(markdown: string, cacheKey?: string): Promise<RenderedFiche> {
+export interface RenderOptions {
+  /** Clé de cache (chemin + mtime + version de l'arborescence) ; sans clé, pas de cache. */
+  cacheKey?: string;
+  /** Index de résolution des liens `[[…]]` ; sans index, ils restent du texte brut. */
+  links?: LinkIndex;
+}
+
+export async function renderFiche(markdown: string, options: RenderOptions = {}): Promise<RenderedFiche> {
+  const { cacheKey, links } = options;
   if (cacheKey) {
     const hit = renderCache.get(cacheKey);
     if (hit) return hit;
   }
 
-  const file = await processor.process(convertGitbookHints(markdown));
+  const file = await processor.process({ value: convertGitbookHints(markdown), data: { linkIndex: links } });
   const rendered: RenderedFiche = { html: String(file), toc: (file.data.toc as TocEntry[] | undefined) ?? [] };
 
   if (cacheKey) {

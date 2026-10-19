@@ -12,8 +12,10 @@ function collectFolders(nodes: TreeNode[]): string[][] {
   return folders;
 }
 
-export default async function NewFichePage() {
+export default async function NewFichePage({ searchParams }: { searchParams: Promise<{ title?: string }> }) {
+  // Lien [[…]] vers une fiche inexistante : on arrive ici avec le titre déjà proposé.
+  const { title } = await searchParams;
   const tree = await listTree();
   const folders = [[], ...collectFolders(tree)];
-  return <NewFicheForm folders={folders} />;
+  return <NewFicheForm folders={folders} initialTitle={title ?? ""} />;
 }

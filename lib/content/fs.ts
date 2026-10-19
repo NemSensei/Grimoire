@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { CONTENT_ROOT, InvalidPathError, resolveSafeFichePath, resolveSafeFolderPath } from "./paths";
 import { slugify } from "./slugify";
+import { ficheTitle } from "./labels";
+import { buildLinkIndex, type LinkIndex } from "./links";
 
 export interface TreeFolder {
   type: "folder";
@@ -19,11 +21,6 @@ export interface TreeFiche {
 }
 
 export type TreeNode = TreeFolder | TreeFiche;
-
-export function extractTitle(markdown: string, fallback: string): string {
-  const match = markdown.match(/^#\s+(.+)$/m);
-  return match ? match[1].trim() : fallback;
-}
 
 async function walk(dirAbs: string, relSegments: string[]): Promise<TreeNode[]> {
   const entries = await fs.readdir(dirAbs, { withFileTypes: true });
@@ -43,7 +40,7 @@ async function walk(dirAbs: string, relSegments: string[]): Promise<TreeNode[]> 
         return {
           type: "fiche",
           name: entry.name,
-          title: extractTitle(content, entry.name),
+          title: ficheTitle(content, entry.name),
           path: segments,
           mtimeMs: stat.mtimeMs,
         };
@@ -68,10 +65,18 @@ async function walk(dirAbs: string, relSegments: string[]): Promise<TreeNode[]> 
  * (pages vs route handlers) au sein du même process — un `let` local ne serait pas partagé.
  */
 const TREE_TTL_MS = 30_000;
-const cacheHolder = globalThis as { __grimoireTree?: { at: number; promise: Promise<TreeNode[]> } | null };
+const cacheHolder = globalThis as {
+  __grimoireTree?: { at: number; promise: Promise<TreeNode[]> } | null;
+  __grimoireTreeVersion?: number;
+};
 
 export function invalidateTree(): void {
   cacheHolder.__grimoireTree = null;
+}
+
+/** Change à chaque reconstruction de l'arborescence ; sert de composante aux clés de cache dérivées. */
+export function treeVersion(): number {
+  return cacheHolder.__grimoireTreeVersion ?? 0;
 }
 
 export async function listTree(): Promise<TreeNode[]> {
@@ -80,9 +85,15 @@ export async function listTree(): Promise<TreeNode[]> {
 
   const promise = fs.mkdir(CONTENT_ROOT, { recursive: true }).then(() => walk(CONTENT_ROOT, []));
   cacheHolder.__grimoireTree = { at: Date.now(), promise };
+  cacheHolder.__grimoireTreeVersion = treeVersion() + 1;
   // Ne pas garder en cache une lecture échouée.
   promise.catch(() => invalidateTree());
   return promise;
+}
+
+/** Index des liens `[[…]]` construit sur l'arborescence courante. */
+export async function currentLinkIndex(): Promise<LinkIndex> {
+  return buildLinkIndex(flattenFiches(await listTree()));
 }
 
 /** Fiches dans l'ordre d'affichage de la sidebar (parcours en profondeur). */
@@ -105,7 +116,7 @@ export async function readFiche(segments: string[]): Promise<FicheContent> {
   const abs = resolveSafeFichePath(segments);
   const content = await fs.readFile(abs, "utf-8");
   const stat = await fs.stat(abs);
-  return { content, title: extractTitle(content, segments[segments.length - 1]), mtimeMs: stat.mtimeMs };
+  return { content, title: ficheTitle(content, segments[segments.length - 1]), mtimeMs: stat.mtimeMs };
 }
 
 export class ConflictError extends Error {}
@@ -220,5 +231,19 @@ export async function deleteEntry(segments: string[]): Promise<void> {
   } else {
     await fs.rmdir(resolveSafeFolderPath(segments));
   }
+  invalidateTree();
+}
+
+/**
+ * Écrit une fiche sans contrôle de concurrence (restauration d'une version depuis l'historique).
+ * `mustNotExist` : pour ramener une fiche supprimée sans écraser une fiche recréée entre-temps.
+ */
+export async function restoreFiche(segments: string[], content: string, mustNotExist = false): Promise<void> {
+  const abs = resolveSafeFichePath(segments);
+  if (mustNotExist && (await pathExists(abs))) {
+    throw new ConflictError("Une fiche existe déjà à cet emplacement");
+  }
+  await fs.mkdir(path.dirname(abs), { recursive: true });
+  await fs.writeFile(abs, content, "utf-8");
   invalidateTree();
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createFolder, moveEntry, deleteEntry, ConflictError } from "@/lib/content/fs";
 import { InvalidPathError } from "@/lib/content/paths";
-import { reindexAll } from "@/lib/db/search";
+import { afterMutation } from "@/lib/content/after-mutation";
 
 const segmentsSchema = z.array(z.string()).min(1);
 
@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     await moveEntry(parsed.data.from, parsed.data.to);
-    await reindexAll();
+    await afterMutation(`Déplacement de ${parsed.data.from.join("/")} vers ${parsed.data.to.join("/")}`);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return errorResponse(error);
@@ -63,7 +63,7 @@ export async function DELETE(request: NextRequest) {
 
   try {
     await deleteEntry(parsed.data.path);
-    await reindexAll();
+    await afterMutation(`Suppression de ${parsed.data.path.join("/")}`);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return errorResponse(error);

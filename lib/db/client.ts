@@ -18,6 +18,13 @@ function initSchema(database: Database.Database): void {
     CREATE VIRTUAL TABLE IF NOT EXISTS fiches_fts USING fts5(
       path, title, content, folder UNINDEXED
     );
+
+    -- Liens entre fiches (source -> cible), reconstruits avec l'index de recherche.
+    CREATE TABLE IF NOT EXISTS links (
+      source TEXT NOT NULL,
+      target TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS links_target ON links (target);
   `);
 }
 

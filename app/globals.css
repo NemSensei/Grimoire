@@ -393,28 +393,108 @@ body {
   font-weight: 600;
 }
 
-/* ---------- Éditeur (@uiw/react-md-editor) aligné sur le thème ---------- */
+/* ---------- Liens entre fiches [[…]] ---------- */
 
-.wmde-markdown-var,
-[data-color-mode] .w-md-editor {
-  --color-canvas-default: var(--bg);
-  --color-canvas-subtle: var(--bg-subtle);
-  --color-border-default: var(--border);
-  --color-border-muted: var(--border);
-  --color-fg-default: var(--fg);
-  --color-fg-muted: var(--fg-muted);
-  --color-accent-fg: var(--accent);
+.doc a.wikilink {
+  border-bottom-style: dashed;
 }
 
-.w-md-editor {
-  border-radius: 0.625rem;
-  overflow: hidden;
-  box-shadow: none !important;
-  border: 1px solid var(--border);
-  background-color: var(--bg) !important;
+.doc a.wikilink-missing {
+  color: var(--fg-subtle);
+  border-bottom-color: var(--fg-subtle);
 }
 
-.w-md-editor-toolbar {
-  background-color: var(--bg-subtle) !important;
-  border-bottom: 1px solid var(--border) !important;
+/* ---------- Éditeur CodeMirror, couleurs façon Obsidian ---------- */
+
+:root {
+  --cm-h1: #3b5bdb;
+  --cm-h2: #7c3aed;
+  --cm-h3: #0e7490;
+  --cm-h4: #b45309;
+  --cm-strong: #1d2129;
+  --cm-em: #be185d;
+  --cm-code: #c2410c;
+}
+
+.dark {
+  --cm-h1: #8fa4ff;
+  --cm-h2: #c4a5ff;
+  --cm-h3: #5fd3e6;
+  --cm-h4: #fbbf6a;
+  --cm-strong: #ffffff;
+  --cm-em: #f9a8d4;
+  --cm-code: #ffa36b;
+}
+
+.grimoire-editor .cm-md-heading {
+  line-height: 1.4;
+  padding-top: 0.6em !important;
+}
+
+.grimoire-editor .cm-md-inline-code {
+  background: var(--bg-muted);
+  color: var(--cm-code);
+  border-radius: 4px;
+  padding: 0.1em 0.25em;
+  font-size: 0.9em;
+}
+
+.grimoire-editor .cm-md-codeblock {
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  line-height: 1.65;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.grimoire-editor .cm-md-codeblock-first {
+  border-top: 1px solid var(--border);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  padding-top: 4px !important;
+}
+
+.grimoire-editor .cm-md-codeblock-last {
+  border-bottom: 1px solid var(--border);
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  padding-bottom: 4px !important;
+}
+
+.grimoire-editor .cm-md-quote,
+.grimoire-editor .cm-md-callout {
+  --callout: var(--fg-subtle);
+  border-left: 3px solid var(--callout);
+  padding-left: 14px !important;
+}
+
+.grimoire-editor .cm-md-callout {
+  --callout: var(--accent);
+  background: color-mix(in srgb, var(--callout) 8%, transparent);
+}
+
+.grimoire-editor .cm-md-callout-tip {
+  --callout: #1f9d55;
+}
+
+.grimoire-editor .cm-md-callout-important {
+  --callout: #8b5cf6;
+}
+
+.grimoire-editor .cm-md-callout-warning {
+  --callout: #d97706;
+}
+
+.grimoire-editor .cm-md-callout-caution {
+  --callout: #e03131;
+}
+
+.grimoire-editor .cm-md-wikilink {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 0.05em 0.15em;
 }

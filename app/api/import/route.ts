@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { importFiches, type ImportEntry } from "@/lib/content/fs";
 import { InvalidPathError } from "@/lib/content/paths";
-import { reindexAll } from "@/lib/db/search";
+import { afterMutation } from "@/lib/content/after-mutation";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
 const MAX_FILES = 200;
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { imported } = await importFiches(folder, entries);
-    await reindexAll();
+    await afterMutation(`Import de ${imported.length} fiche(s)`);
     return NextResponse.json({ imported, skipped });
   } catch (error) {
     if (error instanceof InvalidPathError) {

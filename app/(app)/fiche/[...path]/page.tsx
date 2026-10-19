@@ -2,13 +2,15 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { flattenFiches, listTree, readFiche } from "@/lib/content/fs";
+import { flattenFiches, listTree, readFiche, treeVersion } from "@/lib/content/fs";
 import { renderFiche } from "@/lib/content/markdown";
 import { InvalidPathError } from "@/lib/content/paths";
-import { editHref, ficheHref, folderLabel } from "@/lib/content/labels";
+import { editHref, ficheHref, folderLabel, leadingTitle } from "@/lib/content/labels";
+import { buildLinkIndex } from "@/lib/content/links";
+import { backlinksOf } from "@/lib/db/search";
 import { MarkdownView } from "@/components/viewer/MarkdownView";
 import { Toc } from "@/components/viewer/Toc";
-import { ChevronLeftIcon, ChevronRightIcon, ClockIcon, PencilIcon } from "@/components/icons";
+import { ChevronLeftIcon, ChevronRightIcon, ClockIcon, FileIcon, PencilIcon } from "@/components/icons";
 
 type Params = { params: Promise<{ path: string[] }> };
 
@@ -39,9 +41,16 @@ const dateFormat = new Intl.DateTimeFormat("fr-FR", {
 export default async function FichePage({ params }: Params) {
   const { path: segments } = await params;
   const [fiche, tree] = await Promise.all([loadFiche(segments), listTree()]);
-  const { html, toc } = await renderFiche(fiche.content, `${segments.join("/")}:${fiche.mtimeMs}`);
-
   const ordered = flattenFiches(tree);
+  const { html, toc } = await renderFiche(fiche.content, {
+    cacheKey: `${segments.join("/")}:${fiche.mtimeMs}:${treeVersion()}`,
+    links: buildLinkIndex(ordered),
+  });
+  const titleByPath = new Map(ordered.map((f) => [f.path.join("/"), f]));
+  const backlinks = backlinksOf(segments)
+    .map((p) => titleByPath.get(p.join("/")))
+    .filter((f) => f !== undefined);
+
   const index = ordered.findIndex((f) => f.path.join("/") === segments.join("/"));
   const prev = index > 0 ? ordered[index - 1] : null;
   const next = index >= 0 && index < ordered.length - 1 ? ordered[index + 1] : null;
@@ -64,16 +73,50 @@ export default async function FichePage({ params }: Params) {
               </span>
             ))}
           </nav>
-          <Link
-            href={editHref(segments)}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-fg-muted transition-colors hover:border-fg-subtle/50 hover:bg-bg-subtle hover:text-fg"
-          >
-            <PencilIcon width={14} height={14} />
-            Modifier
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/history/${segments.map(encodeURIComponent).join("/")}`}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
+            >
+              <ClockIcon width={14} height={14} />
+              Historique
+            </Link>
+            <Link
+              href={editHref(segments)}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-fg-muted transition-colors hover:border-fg-subtle/50 hover:bg-bg-subtle hover:text-fg"
+            >
+              <PencilIcon width={14} height={14} />
+              Modifier
+            </Link>
+          </div>
         </div>
 
+        {/* Fiche sans titre en tête : on affiche le titre déduit du nom de fichier. */}
+        {!leadingTitle(fiche.content) && (
+          <h1 className="mb-6 text-4xl font-bold tracking-tight text-fg">{fiche.title}</h1>
+        )}
         <MarkdownView html={html} />
+
+        {backlinks.length > 0 && (
+          <section className="mt-12 rounded-xl border border-border bg-bg-subtle/50 p-5">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+              Référencée par {backlinks.length} fiche{backlinks.length > 1 ? "s" : ""}
+            </h2>
+            <ul className="grid gap-1 sm:grid-cols-2">
+              {backlinks.map((f) => (
+                <li key={f.path.join("/")}>
+                  <Link
+                    href={ficheHref(f.path)}
+                    className="group flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-bg-muted"
+                  >
+                    <FileIcon className="shrink-0 text-fg-subtle group-hover:text-accent" />
+                    <span className="truncate font-medium text-fg group-hover:text-accent">{f.title}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <div className="mt-12 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border pt-5 text-xs text-fg-subtle">
           <span className="flex items-center gap-1.5">

@@ -19,11 +19,13 @@ d'architecture, l'avancement étape par étape, et le journal des correctifs. Vo
 ## Stack
 - Framework : Next.js (App Router, TypeScript)
 - Fiches : fichiers `.md` bruts sur disque (`content/`), pas de base de données pour le contenu
+- Historique : `content/` est un dépôt git interne (`lib/content/history.ts`), commité à chaque
+  mutation au nom de l'utilisateur
 - Comptes & recherche : SQLite (`better-sqlite3`) — table `users` + index full-text FTS5
 - Auth : sessions chiffrées (`iron-session`) + `bcryptjs`, pas d'auto-inscription (comptes créés
   en CLI via `scripts/create-user.ts`)
 - Rendu Markdown : `unified`/`remark`/`rehype`, sanitizé côté serveur (`rehype-sanitize`)
-- Éditeur : `@uiw/react-md-editor`
+- Éditeur : CodeMirror 6 (`components/editor/codemirror.ts`)
 - Style : Tailwind CSS, couleurs via les tokens de thème (`bg-bg`, `text-fg-muted`, `border-border`,
   `text-accent`…) définis dans `app/globals.css` — pas de couleurs `neutral-*` codées en dur
 
@@ -40,6 +42,10 @@ d'architecture, l'avancement étape par étape, et le journal des correctifs. Vo
   (`app/api/**/route.ts`), y compris les uploads multipart.
 - **`proxy.ts`** (pas `middleware.ts` — convention Next.js 16) protège tout sauf `/login` et
   `/api/auth/login`.
+- **Après chaque mutation** de `content/`, une route appelle `afterMutation(message)`
+  (`lib/content/after-mutation.ts`) : réindexation (recherche + liens) et commit dans l'historique.
+- **Titre d'une fiche** : le H1 qui ouvre la fiche, sinon le nom de fichier rendu lisible
+  (`ficheTitle` dans `lib/content/labels.ts`).
 - **Caches mémoire** : l'arborescence (`listTree`) et les rendus Markdown sont mis en cache sur
   `globalThis`. Toute écriture de fiche/dossier doit passer par `lib/content/fs.ts` (qui appelle
   `invalidateTree()`), sinon la sidebar restera périmée jusqu'à 30 s.

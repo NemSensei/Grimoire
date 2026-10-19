@@ -8,10 +8,10 @@ function folderLabel(folder: string[]): string {
   return folder.length === 0 ? "/ (racine)" : folder.join("/");
 }
 
-export function NewFicheForm({ folders }: { folders: string[][] }) {
+export function NewFicheForm({ folders, initialTitle }: { folders: string[][]; initialTitle: string }) {
   const router = useRouter();
   const [folderIndex, setFolderIndex] = useState(0);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialTitle);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 

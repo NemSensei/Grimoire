@@ -9,8 +9,8 @@ export class InvalidPathError extends Error {}
 function assertValidSegment(segment: string): void {
   if (
     segment.length === 0 ||
-    segment === "." ||
-    segment === ".." ||
+    // Aucun segment caché : protège notamment content/.git (historique) de toute route.
+    segment.startsWith(".") ||
     segment.includes("/") ||
     segment.includes("\\") ||
     segment.includes("\0") ||

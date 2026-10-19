@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createFiche } from "@/lib/content/fs";
 import { InvalidPathError } from "@/lib/content/paths";
-import { reindexAll } from "@/lib/db/search";
+import { afterMutation } from "@/lib/content/after-mutation";
 
 const createSchema = z.object({
   folder: z.array(z.string()).default([]),
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const path = await createFiche(folder, title, initialContent);
-    await reindexAll();
+    await afterMutation(`Création de ${path.join("/")}`);
     return NextResponse.json({ path });
   } catch (error) {
     if (error instanceof InvalidPathError) {
